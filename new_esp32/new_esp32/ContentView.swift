@@ -2,31 +2,50 @@
 //  ContentView.swift
 //  new_esp32
 //
+//  BLE UART Terminal Interface
+//  Allows connecting to ESP32 BLE server and exchanging serial-like messages
+//
 //  Created by Oscar Euceda on 4/1/26.
 //
 
 import SwiftUI
 import CoreBluetooth
 
+/// Main view for the BLE UART app.
+/// 
+/// UI Layout (top to bottom):
+/// 1. Status bar - Shows connection state and device name
+/// 2. Device list - Scrolling list of discovered ESP32 devices (when scanning/disconnected)
+/// 3. Message log - Timestamped log of sent/received messages
+/// 4. Input field - Text field to send messages to ESP32 (only when connected)
+///
+/// State-based UI:
+/// - Disconnected: Shows Scan button, empty device list
+/// - Scanning: Shows Stop button, device list with progress indicator
+/// - Connecting: Shows Disconnect button, message log
+/// - Connected: Shows Disconnect button, message log, input field
 struct ContentView: View {
+    /// BLEManager is marked @StateObject so it's created once and persists across view updates
     @StateObject private var bleManager = BLEManager()
+    /// Local state for the text field input (cleared after sending)
     @State private var inputText = ""
 
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Status bar
+                // Connection status indicator with device name
                 statusBar
 
-                // Device list (shown when scanning or disconnected)
+                // Device list - visible when scanning OR when disconnected with no devices
+                // Shows either: (1) scanning progress, or (2) list of found devices
                 if bleManager.state == .scanning || (bleManager.state == .disconnected && bleManager.discoveredDevices.isEmpty) {
                     deviceList
                 }
 
-                // Message log
+                // Message log - always visible, shows all BLE activity
                 messageLog
 
-                // Input field (only when connected)
+                // Input field - only visible when connected to ESP32
                 if bleManager.state == .connected {
                     inputField
                 }
@@ -34,7 +53,9 @@ struct ContentView: View {
             .navigationTitle("ESP32 BLE")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
+                    // Dynamic toolbar button based on connection state
                     if bleManager.state == .disconnected || bleManager.state == .scanning {
+                        // Toggle between Scan and Stop based on current state
                         Button(bleManager.state == .scanning ? "Stop" : "Scan") {
                             if bleManager.state == .scanning {
                                 bleManager.stopScan()
@@ -43,6 +64,7 @@ struct ContentView: View {
                             }
                         }
                     } else if bleManager.state == .connected {
+                        // Disconnect button (red to indicate destructive action)
                         Button("Disconnect") {
                             bleManager.disconnect()
                         }
@@ -53,8 +75,14 @@ struct ContentView: View {
         }
     }
 
+    // =============================================================================
+    // Status Bar View
+    // =============================================================================
+    
+    /// Displays current connection state with color indicator and device name
     private var statusBar: some View {
         HStack {
+            // Colored circle indicating state: red=disconnected, yellow=scanning, orange=connecting, green=connected
             Circle()
                 .fill(stateColor)
                 .frame(width: 10, height: 10)
@@ -62,6 +90,7 @@ struct ContentView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
             Spacer()
+            // Show connected device name if we have one
             if let name = bleManager.connectedDeviceName {
                 Text(name)
                     .font(.caption)
@@ -72,6 +101,7 @@ struct ContentView: View {
         .background(Color(.systemGray6))
     }
 
+    /// Maps BLEState enum to UI color for status indicator
     private var stateColor: Color {
         switch bleManager.state {
         case .disconnected: return .red
@@ -81,8 +111,20 @@ struct ContentView: View {
         }
     }
 
+    // =============================================================================
+    // Device List View
+    // =============================================================================
+    
+    /**
+     * Shows either:
+     * - A centered progress spinner when scanning but no devices found yet
+     * - A scrollable List of discovered devices when results are available
+     * 
+     * Tapping a device initiates connection via bleManager.connect()
+     */
     private var deviceList: some View {
         Group {
+            // No devices found yet - show spinner
             if bleManager.discoveredDevices.isEmpty && bleManager.state == .scanning {
                 VStack {
                     Spacer()
@@ -90,6 +132,7 @@ struct ContentView: View {
                     Spacer()
                 }
             } else if !bleManager.discoveredDevices.isEmpty {
+                // Devices available - show scrollable list
                 List(bleManager.discoveredDevices, id: \.identifier) { device in
                     Button(action: {
                         bleManager.connect(to: device)
@@ -107,6 +150,17 @@ struct ContentView: View {
         }
     }
 
+    // =============================================================================
+    // Message Log View
+    // =============================================================================
+    
+    /**
+     * Scrollable log showing all BLE activity with timestamps.
+     * Automatically scrolls to newest message when log grows.
+     * 
+     * Uses ScrollViewReader for programmatic scrolling to bottom.
+     * onChange triggers scroll when messageLog.count changes.
+     */
     private var messageLog: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -122,6 +176,7 @@ struct ContentView: View {
                     }
                 }
                 .padding()
+                // Auto-scroll to bottom when new messages arrive
                 .onChange(of: bleManager.messageLog.count) {
                     withAnimation {
                         proxy.scrollTo(bleManager.messageLog.count - 1, anchor: .bottom)
@@ -131,6 +186,15 @@ struct ContentView: View {
         }
     }
 
+    // =============================================================================
+    // Input Field View
+    // =============================================================================
+    
+    /**
+     * Text input field for composing messages to send to ESP32.
+     * Only visible when connected.
+     * Clears input field after sending to prevent duplicate sends.
+     */
     private var inputField: some View {
         HStack {
             TextField("Enter message...", text: $inputText)
