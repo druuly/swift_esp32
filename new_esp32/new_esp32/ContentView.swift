@@ -45,6 +45,11 @@ struct ContentView: View {
                 // Message log - always visible, shows all BLE activity
                 messageLog
 
+                // Sensor readings - visible when connected
+                if bleManager.state == .connected {
+                    sensorReadings
+                }
+
                 // Input field - only visible when connected to ESP32
                 if bleManager.state == .connected {
                     inputField
@@ -184,6 +189,48 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    // =============================================================================
+    // Sensor Readings View
+    // =============================================================================
+    
+    private var sensorReadings: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("MAX30102 Readings")
+                .font(.headline)
+                .padding(.horizontal)
+            
+            HStack {
+                VStack {
+                    Text("Red")
+                        .font(.caption)
+                    Text("\(bleManager.redValue)")
+                        .font(.system(.title3, design: .monospaced))
+                }
+                .frame(maxWidth: .infinity)
+                
+                VStack {
+                    Text("IR")
+                        .font(.caption)
+                    Text("\(bleManager.irValue)")
+                        .font(.system(.title3, design: .monospaced))
+                }
+                .frame(maxWidth: .infinity)
+                
+                VStack {
+                    Text("Green")
+                        .font(.caption)
+                    Text("\(bleManager.greenValue)")
+                        .font(.system(.title3, design: .monospaced))
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding()
+        }
+        .background(Color(.systemGray6))
+        .cornerRadius(8)
+        .padding()
     }
 
     // =============================================================================

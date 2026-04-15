@@ -49,6 +49,9 @@
 #define REG_SPO2_CONFIG        0x0A
 #define REG_LED1_PA            0x0C
 #define REG_LED2_PA            0x0D
+#define REG_RED_DATA           0x06
+#define REG_IR_DATA            0x05
+#define REG_GREEN_DATA         0x04
 
 // =============================================================================
 // Global BLE Objects
@@ -93,6 +96,51 @@ void enableMax30102() {
     writeMax30102Register(REG_LED2_PA, 0x24);
 }
 
+uint32_t getMax30102Red() {
+    uint8_t buffer[3];
+    Wire.beginTransmission(MAX30102_I2C_ADDR);
+    Wire.write(REG_RED_DATA);
+    Wire.endTransmission(false);
+    Wire.requestFrom((int)MAX30102_I2C_ADDR, 3);
+    if (Wire.available() >= 3) {
+        buffer[0] = Wire.read();
+        buffer[1] = Wire.read();
+        buffer[2] = Wire.read();
+        return ((uint32_t)buffer[0] << 16) | ((uint32_t)buffer[1] << 8) | buffer[2];
+    }
+    return 0;
+}
+
+uint32_t getMax30102IR() {
+    uint8_t buffer[3];
+    Wire.beginTransmission(MAX30102_I2C_ADDR);
+    Wire.write(REG_IR_DATA);
+    Wire.endTransmission(false);
+    Wire.requestFrom((int)MAX30102_I2C_ADDR, 3);
+    if (Wire.available() >= 3) {
+        buffer[0] = Wire.read();
+        buffer[1] = Wire.read();
+        buffer[2] = Wire.read();
+        return ((uint32_t)buffer[0] << 16) | ((uint32_t)buffer[1] << 8) | buffer[2];
+    }
+    return 0;
+}
+
+uint32_t getMax30102Green() {
+    uint8_t buffer[3];
+    Wire.beginTransmission(MAX30102_I2C_ADDR);
+    Wire.write(REG_GREEN_DATA);
+    Wire.endTransmission(false);
+    Wire.requestFrom((int)MAX30102_I2C_ADDR, 3);
+    if (Wire.available() >= 3) {
+        buffer[0] = Wire.read();
+        buffer[1] = Wire.read();
+        buffer[2] = Wire.read();
+        return ((uint32_t)buffer[0] << 16) | ((uint32_t)buffer[1] << 8) | buffer[2];
+    }
+    return 0;
+}
+
 class ServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
         deviceConnected = true;
@@ -109,16 +157,12 @@ class ServerCallbacks: public BLEServerCallbacks {
 
 class RxCallbacks: public BLECharacteristicCallbacks {
     void onWrite(BLECharacteristic* pCharacteristic) {
-        std::string rxValue = pCharacteristic->getValue();
+        String rxValue = pCharacteristic->getValue();
         if (rxValue.length() > 0) {
             Serial.print("Received: ");
-            for (size_t i = 0; i < rxValue.length(); i++) {
-                Serial.print(rxValue[i]);
-            }
-            Serial.println();
+            Serial.println(rxValue);
 
-            String response = "ESP32 got: ";
-            response += String(rxValue.c_str());
+            String response = "ESP32 got: " + rxValue;
             pTxCharacteristic->setValue(response.c_str());
             pTxCharacteristic->notify();
         }
@@ -197,37 +241,26 @@ void loop() {
     }
 
     if (deviceConnected) {
-        String msg = "Heartbeat: " + String(millis() / 1000) + "s";
+        String msg = "";
 
         if (sensorAvailable) {
-            uint8_t buffer[6];
-            Wire.beginTransmission(MAX30102_I2C_ADDR);
-            Wire.write(REG_FIFO_DATA);
-            Wire.endTransmission(false);
-            Wire.requestFrom((int)MAX30102_I2C_ADDR, 6);
-            
-            if (Wire.available() >= 6) {
-                for (int i = 0; i < 6; i++) buffer[i] = Wire.read();
-                
-                uint32_t red = ((uint32_t)buffer[0] << 16) | ((uint32_t)buffer[1] << 8) | buffer[2];
-                uint32_t ir = ((uint32_t)buffer[3] << 16) | ((uint32_t)buffer[4] << 8) | buffer[5];
-                red &= 0x3FFFF;
-                ir &= 0x3FFFF;
+            uint32_t red = getMax30102Red();
+            uint32_t ir = getMax30102IR();
+            uint32_t green = getMax30102Green();
 
-                if (red > 0 && ir > 0) {
-                    float ratio = (float)red / (float)ir;
-                    float spo2 = 104.0f - 17.5f * ratio;
-                    spo2 = constrain(spo2, 70.0f, 100.0f);
-                    msg += " | SpO2: " + String(spo2, 1) + "%";
-                }
-            }
+            red &= 0x3FFFF;
+            ir &= 0x3FFFF;
+            green &= 0x3FFFF;
+
+            msg = " R[" + String(red) + "] IR[" + String(ir) + "] G[" + String(green) + "]";
         } else {
-            msg += " | Sensor: Not Connected";
+            msg = " Sensor: Not Connected";
         }
 
+        Serial.println(msg);
         pTxCharacteristic->setValue(msg.c_str());
         pTxCharacteristic->notify();
-        delay(5000);
+        delay(100);
     }
 
     delay(100);

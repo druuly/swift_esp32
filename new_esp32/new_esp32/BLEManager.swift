@@ -42,6 +42,9 @@ class BLEManager: NSObject, ObservableObject {
     @Published var messageLog: [String] = []                // Timestamped log messages for UI
     @Published var discoveredDevices: [CBPeripheral] = []    // List of found ESP32 devices
     @Published var connectedDeviceName: String?             // Name of connected device
+    @Published var redValue: UInt32 = 0                      // MAX30102 Red reading
+    @Published var irValue: UInt32 = 0                       // MAX30102 IR reading
+    @Published var greenValue: UInt32 = 0                    // MAX30102 Green reading
 
     // =============================================================================
     // BLE UUIDs - Must match the ESP32 firmware exactly
@@ -327,11 +330,24 @@ extension BLEManager: CBPeripheralDelegate {
             addLog("Value update error: \(error.localizedDescription)")
             return
         }
-        // Only process TX characteristic updates (data from ESP32)
         if characteristic.uuid == txCharacteristicUUID,
            let data = characteristic.value,
            let message = String(data: data, encoding: .utf8) {
             addLog("Received: \(message)")
+            
+            if let redRange = message.range(of: "R\\[[0-9]+\\]", options: .regularExpression),
+               let irRange = message.range(of: "IR\\[[0-9]+\\]", options: .regularExpression),
+               let greenRange = message.range(of: "G\\[[0-9]+\\]", options: .regularExpression) {
+                let redStr = message[redRange].replacingOccurrences(of: "R[", with: "").replacingOccurrences(of: "]", with: "")
+                let irStr = message[irRange].replacingOccurrences(of: "IR[", with: "").replacingOccurrences(of: "]", with: "")
+                let greenStr = message[greenRange].replacingOccurrences(of: "G[", with: "").replacingOccurrences(of: "]", with: "")
+                
+                DispatchQueue.main.async {
+                    self.redValue = UInt32(redStr) ?? 0
+                    self.irValue = UInt32(irStr) ?? 0
+                    self.greenValue = UInt32(greenStr) ?? 0
+                }
+            }
         }
     }
 }
