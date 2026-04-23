@@ -203,14 +203,6 @@ struct ContentView: View {
             
             HStack {
                 VStack {
-                    Text("Red")
-                        .font(.caption)
-                    Text("\(bleManager.redValue)")
-                        .font(.system(.title3, design: .monospaced))
-                }
-                .frame(maxWidth: .infinity)
-                
-                VStack {
                     Text("IR")
                         .font(.caption)
                     Text("\(bleManager.irValue)")
@@ -219,14 +211,33 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
                 
                 VStack {
-                    Text("Green")
+                    Text("BPM")
                         .font(.caption)
-                    Text("\(bleManager.greenValue)")
+                    Text("\(bleManager.bpm)")
+                        .font(.system(.title3, design: .monospaced))
+                }
+                .frame(maxWidth: .infinity)
+                
+                VStack {
+                    Text("Avg BPM")
+                        .font(.caption)
+                    Text("\(bleManager.avgBpm)")
                         .font(.system(.title3, design: .monospaced))
                 }
                 .frame(maxWidth: .infinity)
             }
             .padding()
+            
+            HStack {
+                Circle()
+                    .fill(bleManager.fingerOnSensor ? Color.green : Color.red)
+                    .frame(width: 10, height: 10)
+                Text(bleManager.fingerOnSensor ? "Finger on sensor" : "Place finger on sensor")
+                    .font(.caption)
+                    .foregroundColor(bleManager.fingerOnSensor ? .green : .red)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.bottom, 8)
         }
         .background(Color(.systemGray6))
         .cornerRadius(8)

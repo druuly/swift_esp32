@@ -45,6 +45,9 @@ class BLEManager: NSObject, ObservableObject {
     @Published var redValue: UInt32 = 0                      // MAX30102 Red reading
     @Published var irValue: UInt32 = 0                       // MAX30102 IR reading
     @Published var greenValue: UInt32 = 0                    // MAX30102 Green reading
+    @Published var bpm: Int = 0                              // Current BPM
+    @Published var avgBpm: Int = 0                           // Average BPM
+    @Published var fingerOnSensor: Bool = true               // Finger detection
 
     // =============================================================================
     // BLE UUIDs - Must match the ESP32 firmware exactly
@@ -334,6 +337,23 @@ extension BLEManager: CBPeripheralDelegate {
            let data = characteristic.value,
            let message = String(data: data, encoding: .utf8) {
             addLog("Received: \(message)")
+            
+            if message.contains("Place finger") {
+                DispatchQueue.main.async {
+                    self.fingerOnSensor = false
+                    self.bpm = 0
+                    self.avgBpm = 0
+                }
+            } else if let bpmRange = message.range(of: "Heartbeat: [0-9]+", options: .regularExpression) {
+                let bpmStr = message[bpmRange]
+                    .replacingOccurrences(of: "Heartbeat: ", with: "")
+                    .replacingOccurrences(of: " BPM", with: "")
+                DispatchQueue.main.async {
+                    self.fingerOnSensor = true
+                    self.bpm = Int(bpmStr) ?? 0
+                    self.avgBpm = Int(bpmStr) ?? 0
+                }
+            }
             
             if let redRange = message.range(of: "R\\[[0-9]+\\]", options: .regularExpression),
                let irRange = message.range(of: "IR\\[[0-9]+\\]", options: .regularExpression),

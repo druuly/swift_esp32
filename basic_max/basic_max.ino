@@ -36,6 +36,34 @@ bool sensorAvailable = false;
 
 MAX30105 particleSensor;
 
+const byte RATE_SIZE = 4;
+byte rates[RATE_SIZE];
+byte rateSpot = 0;
+long lastBeat = 0;
+float beatsPerMinute = 0;
+int beatAvg = 0;
+
+long tsLastReport = 0;
+long currentTime = 0;
+
+bool checkForBeat(long irValue)
+{
+    bool beatDetected = false;
+    static long lastBeatTime = 0;
+    static long averageIR = 0;
+    static int beatCount = 0;
+    
+    averageIR = averageIR * 0.95 + irValue * 0.05;
+    long delta = irValue - averageIR;
+    
+    if (delta > 50 && (millis() - lastBeatTime) > 300) {
+        beatDetected = true;
+        lastBeatTime = millis();
+    }
+    
+    return beatDetected;
+}
+
 class ServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
         deviceConnected = true;
@@ -63,6 +91,8 @@ void setup() {
     } else {
         sensorAvailable = true;
         particleSensor.setup();
+        particleSensor.setPulseAmplitudeRed(0x0A);
+        particleSensor.setPulseAmplitudeGreen(0);
         Serial.println("MAX30105 ready");
     }
 
@@ -104,20 +134,49 @@ void loop() {
         oldDeviceConnected = deviceConnected;
     }
 
-    if (deviceConnected) {
-        String msg;
-        if (sensorAvailable) {
-            uint32_t red = particleSensor.getRed();
-            uint32_t ir = particleSensor.getIR();
-            uint32_t green = particleSensor.getGreen();
-            msg = " R[" + String(red) + "] IR[" + String(ir) + "] G[" + String(green) + "]";
-        } else {
-            msg = " Sensor: Not Connected";
+    if (sensorAvailable) {
+        long irValue = particleSensor.getIR();
+
+        if (checkForBeat(irValue) == true) {
+            long delta = millis() - lastBeat;
+            lastBeat = millis();
+
+            beatsPerMinute = 60 / (delta / 1000.0);
+
+            if (beatsPerMinute < 255 && beatsPerMinute > 20) {
+                rates[rateSpot++] = (byte)beatsPerMinute;
+                rateSpot %= RATE_SIZE;
+
+                beatAvg = 0;
+                for (byte x = 0 ; x < RATE_SIZE ; x++)
+                    beatAvg += rates[x];
+                beatAvg /= RATE_SIZE;
+            }
         }
-        
-        Serial.println(msg);
-        pTxCharacteristic->setValue(msg.c_str());
-        pTxCharacteristic->notify();
+
+        Serial.print("IR=");
+        Serial.print(irValue);
+        Serial.print(", BPM=");
+        Serial.print(beatsPerMinute);
+        Serial.print(", Avg BPM=");
+        Serial.print(beatAvg);
+
+        if (irValue < 50000)
+            Serial.print(" No finger?");
+
+        Serial.println();
+
+        if (deviceConnected) {
+            String msg;
+            if (irValue < 50000) {
+                msg = "Place finger on sensor";
+            } else {
+                msg = "Heartbeat: " + String(beatAvg) + " BPM";
+            }
+            
+            pTxCharacteristic->setValue(msg.c_str());
+            pTxCharacteristic->notify();
+        }
     }
 
     delay(100);
