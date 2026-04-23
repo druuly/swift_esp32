@@ -21,6 +21,9 @@
 #include <Wire.h>
 #include "MAX30105.h"
 
+#define I2C_SDA 21
+#define I2C_SCL 22
+
 #define SERVICE_UUID           "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_TX_UUID "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
 #define CHARACTERISTIC_RX_UUID "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -87,7 +90,20 @@ void setup() {
     Serial.begin(115200);
     delay(1000);
     
+    Wire.begin(I2C_SDA, I2C_SCL);
+    Wire.setClock(100000);
+    
     Serial.println("MAX30105 BLE Starting...");
+    
+    Serial.println("Scanning I2C devices...");
+    for (byte addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
+        if (Wire.endTransmission() == 0) {
+            Serial.print("I2C device at 0x");
+            Serial.println(addr, HEX);
+            delay(50);
+        }
+    }
     
     if (particleSensor.begin() == false) {
         Serial.println("MAX30105 was not found. Please check wiring/power.");
@@ -174,7 +190,7 @@ void loop() {
             if (irValue < 50000) {
                 msg = "Place finger on sensor";
             } else {
-                msg = "Heartbeat: " + String(beatAvg) + " BPM";
+                msg = "IR[" + String(irValue) + "] Heartbeat:" + String(beatAvg) + " BPM";
             }
             
             pTxCharacteristic->setValue(msg.c_str());

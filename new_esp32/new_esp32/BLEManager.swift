@@ -344,14 +344,22 @@ extension BLEManager: CBPeripheralDelegate {
                     self.bpm = 0
                     self.avgBpm = 0
                 }
-            } else if let bpmRange = message.range(of: "Heartbeat: [0-9]+", options: .regularExpression) {
-                let bpmStr = message[bpmRange]
-                    .replacingOccurrences(of: "Heartbeat: ", with: "")
-                    .replacingOccurrences(of: " BPM", with: "")
-                DispatchQueue.main.async {
-                    self.fingerOnSensor = true
-                    self.bpm = Int(bpmStr) ?? 0
-                    self.avgBpm = Int(bpmStr) ?? 0
+            } else if message.contains("Heartbeat:") {
+                if let irRange = message.range(of: "IR\\[[0-9]+\\]", options: .regularExpression) {
+                    let irStr = message[irRange].replacingOccurrences(of: "IR[", with: "").replacingOccurrences(of: "]", with: "")
+                    DispatchQueue.main.async {
+                        self.irValue = UInt32(irStr) ?? 0
+                    }
+                }
+                if let bpmRange = message.range(of: "Heartbeat:[0-9]+", options: .regularExpression) {
+                    let bpmStr = message[bpmRange]
+                        .replacingOccurrences(of: "Heartbeat:", with: "")
+                        .replacingOccurrences(of: " BPM", with: "")
+                    DispatchQueue.main.async {
+                        self.fingerOnSensor = true
+                        self.bpm = Int(bpmStr) ?? 0
+                        self.avgBpm = Int(bpmStr) ?? 0
+                    }
                 }
             }
             
