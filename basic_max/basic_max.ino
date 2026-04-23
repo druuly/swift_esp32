@@ -36,7 +36,7 @@ bool sensorAvailable = false;
 
 MAX30105 particleSensor;
 
-const byte RATE_SIZE = 4;
+const byte RATE_SIZE = 8;
 byte rates[RATE_SIZE];
 byte rateSpot = 0;
 long lastBeat = 0;
@@ -51,14 +51,17 @@ bool checkForBeat(long irValue)
     bool beatDetected = false;
     static long lastBeatTime = 0;
     static long averageIR = 0;
-    static int beatCount = 0;
+    static bool aboveAverage = false;
     
-    averageIR = averageIR * 0.95 + irValue * 0.05;
+    averageIR = averageIR * 0.9 + irValue * 0.1;
     long delta = irValue - averageIR;
     
-    if (delta > 50 && (millis() - lastBeatTime) > 300) {
+    if (delta > 150 && !aboveAverage && (millis() - lastBeatTime) > 400) {
+        aboveAverage = true;
         beatDetected = true;
         lastBeatTime = millis();
+    } else if (delta < 50) {
+        aboveAverage = false;
     }
     
     return beatDetected;
