@@ -48,6 +48,7 @@ class BLEManager: NSObject, ObservableObject {
     @Published var bpm: Int = 0                              // Current BPM
     @Published var avgBpm: Int = 0                           // Average BPM
     @Published var fingerOnSensor: Bool = true               // Finger detection
+    @Published var bpmHistory: [(Date, Int)] = []          // BPM over time for graphing
 
     // =============================================================================
     // BLE UUIDs - Must match the ESP32 firmware exactly
@@ -343,6 +344,7 @@ extension BLEManager: CBPeripheralDelegate {
                     self.fingerOnSensor = false
                     self.bpm = 0
                     self.avgBpm = 0
+                    self.bpmHistory.removeAll()
                 }
             } else if message.contains("Heartbeat:") {
                 if let irRange = message.range(of: "IR\\[[0-9]+\\]", options: .regularExpression) {
@@ -359,6 +361,10 @@ extension BLEManager: CBPeripheralDelegate {
                         self.fingerOnSensor = true
                         self.bpm = Int(bpmStr) ?? 0
                         self.avgBpm = Int(bpmStr) ?? 0
+                        self.bpmHistory.append((Date(), self.bpm))
+                        if self.bpmHistory.count > 120 {
+                            self.bpmHistory.removeFirst()
+                        }
                     }
                 }
             }

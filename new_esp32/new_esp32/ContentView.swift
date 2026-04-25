@@ -25,64 +25,25 @@ import CoreBluetooth
 /// - Connecting: Shows Disconnect button, message log
 /// - Connected: Shows Disconnect button, message log, input field
 struct ContentView: View {
-    /// BLEManager is marked @StateObject so it's created once and persists across view updates
     @StateObject private var bleManager = BLEManager()
-    /// Local state for the text field input (cleared after sending)
     @State private var inputText = ""
+    @State private var selectedTab = 0
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Connection status indicator with device name
-                statusBar
-
-                // Device list - visible when scanning OR when disconnected with no devices
-                // Shows either: (1) scanning progress, or (2) list of found devices
-                if bleManager.state == .scanning || (bleManager.state == .disconnected && bleManager.discoveredDevices.isEmpty) {
-                    deviceList
+        TabView(selection: $selectedTab) {
+            terminalView
+                .tabItem {
+                    Label("Terminal", systemImage: "terminal")
                 }
-
-                // Message log - always visible, shows all BLE activity
-                messageLog
-
-                // Sensor readings - visible when connected
-                if bleManager.state == .connected {
-                    sensorReadings
+                .tag(0)
+            
+            HeartRateGraphView(bleManager: bleManager)
+                .tabItem {
+                    Label("Heart Rate", systemImage: "heart.fill")
                 }
-
-                // Input field - only visible when connected to ESP32
-                if bleManager.state == .connected {
-                    inputField
-                }
-            }
-            .navigationTitle("ESP32 BLE")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    // Dynamic toolbar button based on connection state
-                    if bleManager.state == .disconnected || bleManager.state == .scanning {
-                        // Toggle between Scan and Stop based on current state
-                        Button(bleManager.state == .scanning ? "Stop" : "Scan") {
-                            if bleManager.state == .scanning {
-                                bleManager.stopScan()
-                            } else {
-                                bleManager.scan()
-                            }
-                        }
-                    } else if bleManager.state == .connected {
-                        // Disconnect button (red to indicate destructive action)
-                        Button("Disconnect") {
-                            bleManager.disconnect()
-                        }
-                        .foregroundColor(.red)
-                    }
-                }
-            }
+                .tag(1)
         }
     }
-
-    // =============================================================================
-    // Status Bar View
-    // =============================================================================
     
     /// Displays current connection state with color indicator and device name
     private var statusBar: some View {
@@ -266,6 +227,43 @@ struct ContentView: View {
             .buttonStyle(.borderedProminent)
         }
         .padding()
+    }
+    
+    private var terminalView: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                statusBar
+                if bleManager.state == .scanning || (bleManager.state == .disconnected && bleManager.discoveredDevices.isEmpty) {
+                    deviceList
+                }
+                messageLog
+                if bleManager.state == .connected {
+                    sensorReadings
+                }
+                if bleManager.state == .connected {
+                    inputField
+                }
+            }
+            .navigationTitle("ESP32 BLE")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if bleManager.state == .disconnected || bleManager.state == .scanning {
+                        Button(bleManager.state == .scanning ? "Stop" : "Scan") {
+                            if bleManager.state == .scanning {
+                                bleManager.stopScan()
+                            } else {
+                                bleManager.scan()
+                            }
+                        }
+                    } else if bleManager.state == .connected {
+                        Button("Disconnect") {
+                            bleManager.disconnect()
+                        }
+                        .foregroundColor(.red)
+                    }
+                }
+            }
+        }
     }
 }
 
